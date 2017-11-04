@@ -138,7 +138,7 @@ func sendARP() {
 }
 
 func main() {
-    // allow non root user to execute by compare with euid
+	// allow non root user to execute by compare with euid
     if os.Geteuid() != 0 {
         log.Fatal("goscan must run as root.")
     }
