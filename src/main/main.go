@@ -1,47 +1,48 @@
 package main
 
 import (
-    "net"
-    "github.com/Sirupsen/logrus"
-    "time"
-    "fmt"
-    "sync"
-    "sort"
-    "context"
-    "os"
-    "strings"
-    manuf "github.com/timest/gomanuf"
-    "flag"
+	"context"
+	"flag"
+	"fmt"
+	"github.com/Sirupsen/logrus"
+	manuf "github.com/timest/gomanuf"
+	"net"
+	"os"
+	"sort"
+	"strings"
+	"sync"
+	"time"
 )
 
 var log = logrus.New()
-// ipNet 存放 IP地址和子网掩码
+
+// ipNet stores IP address and subnet mask
 var ipNet *net.IPNet
-// 本机的mac地址，发以太网包需要用到
+
+// The machine's mac address, Ethernet packet needs to be used
 var localHaddr net.HardwareAddr
 var iface string
-// 存放最终的数据，key[string] 存放的是IP地址
+
+// Store the final data, key [string] is stored in the IP address
 var data map[string]Info
-// 计时器，在一段时间没有新的数据写入data中，退出程序，反之重置计时器
+
+// Timer, in a period of time no new data is written to the data, exit the program, on the contrary to reset the timer
 var t *time.Ticker
 var do chan string
 
 const (
-    // 3秒的计时器
+	// 3 seconds timer
     START = "start"
     END = "end"
 )
 
 type Info struct {
-    // IP地址
-    Mac      net.HardwareAddr
-    // 主机名
+	Mac      net.HardwareAddr
     Hostname string
-    // 厂商信息
     Manuf    string
 }
 
-// 格式化输出结果
+// Format of the output
 // xxx.xxx.xxx.xxx  xx:xx:xx:xx:xx:xx  hostname  manuf
 // xxx.xxx.xxx.xxx  xx:xx:xx:xx:xx:xx  hostname  manuf
 func PrintData() {
@@ -60,14 +61,14 @@ func PrintData() {
     }
 }
 
-// 将抓到的数据集加入到data中，同时重置计时器
+// The captured data set will be added to the data, while resetting the timer
 func pushData(ip string, mac net.HardwareAddr, hostname, manuf string) {
-    // 停止计时器
+	// Stop the timer
     do <- START
     var mu sync.RWMutex
     mu.RLock()
     defer func() {
-        // 重置计时器
+		// Reset the timer
         do <- END
         mu.RUnlock()
     }()
@@ -94,7 +95,7 @@ func setupNetInfo(f string) {
     if f == "" {
         ifs, err = net.Interfaces()
     } else {
-        // 已经选择iface
+		// Already selected iface
         var it *net.Interface
         it, err = net.InterfaceByName(f)
         if err == nil {
@@ -102,7 +103,7 @@ func setupNetInfo(f string) {
         }
     }
     if err != nil {
-        log.Fatal("无法获取本地网络信息:", err)
+		log.Fatal("Unable to find local network interface ", err)
     }
     for _, it := range ifs {
         addr, _ := it.Addrs()
@@ -119,7 +120,7 @@ func setupNetInfo(f string) {
     }
     END:
     if ipNet == nil || len(localHaddr) == 0 {
-        log.Fatal("无法获取本地网络信息")
+		log.Fatal("Unable to find local network interface")
     }
 }
 
@@ -129,7 +130,7 @@ func localHost() {
 }
 
 func sendARP() {
-    // ips 是内网IP地址集合
+	// ips is the network IP address collection
     ips := Table(ipNet)
     for _, ip := range ips {
         go sendArpPackage(ip)
@@ -143,19 +144,19 @@ func main() {
     }
     flag.StringVar(&iface, "I", "", "Network interface name")
     flag.Parse()
-    // 初始化 data
+	// initialization data
     data = make(map[string]Info)
     do = make(chan string)
-    // 初始化 网络信息
+	// Initialize network information
     setupNetInfo(iface)
-    
+
     ctx, cancel := context.WithCancel(context.Background())
     go listenARP(ctx)
     go listenMDNS(ctx)
     go listenNBNS(ctx)
     go sendARP()
     go localHost()
-    
+
     t = time.NewTicker(4 * time.Second)
     for {
         select {
@@ -168,12 +169,10 @@ func main() {
             case START:
                 t.Stop()
             case END:
-                // 接收到新数据，重置2秒的计数器
+				// Receiving new data, reset 2 seconds counter
                 t = time.NewTicker(2 * time.Second)
             }
         }
     }
     END:
-    
 }
-
