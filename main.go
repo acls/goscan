@@ -157,7 +157,7 @@ func main() {
     go sendARP()
     go localHost()
 
-    t = time.NewTicker(4 * time.Second)
+	t = time.NewTicker(4 * time.Second)
     for {
         select {
         case <-t.C:
